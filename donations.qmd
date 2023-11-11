@@ -1,0 +1,1168 @@
+---
+output: html_document
+editor_options:
+ chunk_output_type: console
+---
+
+# Donations
+
+```{r setup}
+#| label: setup
+#| include: false
+
+source(here::here("r", "libraries.r"))
+source(here::here("r", "libraries_ts.r"))
+source(here::here("r", "constants.r"))
+source(here::here("r", "functions.r"))
+
+#| fig-width: 12
+#| fig-height: 8
+#| fig-column: page
+
+#| tbl-column: page
+
+# :::{.column-page}
+# :::
+  
+
+```
+
+```{r get-data}
+#| label: get-data
+#| eval: true
+#| include: false
+
+don <- readRDS(here::here("data", "rds", "donations_geo.rds"))
+summary(don)
+skim(don)
+
+```
+
+```{r summary}
+#| label: summary
+#| eval: false
+#| include: false
+
+don <- readRDS(here::here("data", "rds", "donations_geo.rds"))
+
+# tmp <- don |> filter(is.na(donation))
+# tmp <- don |> filter(lname=="Scurria")
+# tmp <- don |> filter(donation==0)
+# 
+# p <- c(0, .01, .05, .10, .25, .5, .75, .9, .95, .99, 1)
+# don |> 
+#   filter(donation > 5) |> 
+#   pull(donation) |> 
+#   quantile(p)
+# quantile(don$donation, p)
+
+
+count(don, campaign, sort=TRUE)
+count(don |> filter(str_detect(campaign, "Annual Fund")), campaign, sort=FALSE) |>
+  arrange(campaign)
+count(don |> filter(str_detect(campaign, "Corp")), campaign, sort=FALSE) |> 
+  arrange(campaign)
+
+don |> select(dondate, fname, lname, campaign, donation) |> arrange(-donation) 
+
+don |> 
+  summarise(n=n(), donation=sum(donation), .by=fyear)
+
+count(don |> filter(donation==0))
+don |> filter(donation==0)
+
+```
+
+```{r convos}
+#| label: convos
+#| eval: false
+#| include: false
+
+# Connie 34566, BBooks 37791 Chris 34565
+# Darcy 34509
+# Sarah 39963 John 34557
+# Maryann and Sue 40747 35105
+# Hugh 35940 Kathy 35941
+# Benji 34845
+# Tracey 34550 39720
+# Scott 39512 Scott or Lisa 38968
+# O'Grady 36798
+# Lulla 36864 Congelosi 34491 Maidstone 41574
+# Richard  36064 Bud 36049 Cambridge Antiques 37837
+# Gerry Cuite 36967 Thomas 38492
+# Todd Akin & Jean Country Gals 37879
+# Larry 35231
+# Terry Griffin 34109 Chestnut Ridge 37868
+# Debby Jaffe 36837 Edwin Schiele 43000 Long Days Farm
+# Bliss 34517 Robbie 36787 Community Garden 39108 Bliss Tune Jam 38644
+# Jurgen Kruger 35501 Sharon Kruger 35502
+
+
+accts <- c(34566, 37791, 34565, # Connie Brooks, Battenkill Books, Chris Callahan
+           34509, # Darcy May
+           34557, # John Mooney
+           40747, 35105, # Maryann McGeorge and Sue Sanderson
+           35940, 35941, # Hugh and Kathy Roome
+           34845, # Benji White
+           39512, 38968, # Scott and/or Lisa Carrino
+           36798, # Brian and/or Beth O'Grady
+           36864, 34491, 41574, # Steve Lulla, Christine Congelosi, Maidstone Wealth Management
+           36064, 36049, 37837, # Richard Bump, Bud Kelleher, Cambridge Antiques
+           36967, 38492, # Gerry Cuite, Thomas Cuite
+           37879, # Todd Akin &* Jean, Country Gals
+           35231, # Larry Sconzo
+           34109, 37868, # Terry Griffin, Peter Deming, Chestnut Ridge
+           36837, 43000, # Debby Jaffe, Edwin Schiele, Long Days Farm
+           39108, 34517, 36787, 38644, # Bliss McIntosh, Robbie McIntosh, Community Garden, Bliss Tune Jam
+           35501, 35502, # Jurgen Kruger, Sharon Kruger
+           36755, 36795,  # Evelyn Estey
+           36138 # Lila Brown
+           )
+
+don |> 
+  # filter(str_detect(fname, "Jean")) |> 
+  # filter(str_detect(coname, "Country")) |> 
+  filter(str_detect(lname, "Eastman")) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, dondate, donation)
+
+don |> 
+  filter(account %in% accts) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, dondate, donation) |> 
+  select(account, acctype, fname, lname, hhname, coname) |> 
+  distinct() |> 
+  arrange(lname)
+
+don |> 
+  filter(account %in% accts, fyear < 2024) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, dondate, fyear, donation) |> 
+  summarise(donation=sum(donation), .by=fyear) |> 
+  arrange(fyear) |> 
+  adorn_totals()
+
+don |> 
+  filter(account %in% accts, fyear %in% 2013:2023) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, campaign, dondate, fyear, donation) |> 
+  filter(campaign != "Executive Director Fund") |>
+  mutate(ygroup=case_when(fyear %in% 2013:2016 ~ "y201316",
+                          fyear %in% 2017:2019 ~ "y201719",
+                          fyear %in% 2020:2021 ~ "y202021",
+                          fyear %in% 2022:2023 ~ "y202223",
+                          TRUE ~ "zother")) |> 
+  summarise(nyears=length(unique(fyear)), donation=sum(donation), .by=ygroup) |> 
+  mutate(avgpy=donation / nyears) |> 
+  arrange(ygroup)
+
+don |> 
+  filter(account %in% accts, fyear %in% 2013:2023) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, campaign, dondate, fyear, donation) |> 
+  mutate(campaign=case_when(campaign == "Executive Director Fund" ~ "edf",
+                            TRUE ~ "other")) |> 
+  summarise(donation=sum(donation), .by=c(fyear, campaign)) |> 
+  pivot_wider(names_from = campaign, values_from = donation) |> 
+  arrange(fyear)
+
+edfs <- don |> 
+  filter(account %in% accts, fyear %in% 2013:2023) |> 
+  mutate(campaign=case_when(campaign == "Executive Director Fund" ~ "edf",
+                            TRUE ~ "other")) |> 
+  arrange(account, fyear) |> 
+  mutate(edfer=sum(campaign=="edf"), .by=account) |> 
+  summarise(edfer=sum(edfer)>0, .by=hhname)
+
+tmp <- don |> 
+  filter(account %in% accts, fyear %in% 2013:2023) 
+
+tabdata <- don |> 
+  filter(account %in% accts) |> 
+  #filter(!hhname %in% edfs$hhname[edfs$edfer>0]) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, campaign, dondate, fyear, donation) |> 
+  mutate(ygroup=case_when(fyear %in% 2013:2016 ~ "y201316",
+                          fyear %in% 2017:2019 ~ "y201719",
+                          fyear %in% 2020:2021 ~ "y202021",
+                          fyear %in% 2022:2023 ~ "y202223",
+                          TRUE ~ "zother"))
+sum(tabdata$donation) # 251860.4
+
+tabdata |> 
+  filter(fyear %in% 2013:2023) |> 
+  summarise(nyears=length(unique(fyear)), donation=sum(donation), .by=ygroup) |> 
+  arrange(ygroup) |> 
+  janitor::adorn_totals() |> 
+  mutate(avgpy=donation / nyears)
+
+# Key table
+tabdata |> 
+  filter(fyear %in% 2013:2023) |> 
+  mutate(campaign=ifelse(is.na(campaign), "other", campaign)) |> 
+  mutate(edf=ifelse(campaign != "Executive Director Fund", "other", "execdir")) |> 
+  summarise(donation=sum(donation), .by=c(fyear, edf)) |> 
+  pivot_wider(names_from = edf, values_from = donation, values_fill = 0) |> 
+  select(fyear, execdir, other) |> 
+  mutate(total=execdir + other) |> 
+  arrange(fyear) |> 
+  janitor::adorn_totals() |> 
+  gt() |> 
+  fmt_currency(columns=-c(fyear),
+             decimals=0)
+
+tabdata |> 
+  filter(fyear %in% 2013:2023) |>
+  summarise(donation=sum(donation), .by=c(fyear)) |> 
+  ggplot(aes(fyear, donation)) +
+  geom_line(colour="blue") +
+  geom_point(colour="blue") +
+  scale_x_continuous(name="Hubbard Hall fiscal year", breaks=2012:2024) +
+  scale_y_continuous(name="Donations", labels = scales::dollar_format(), limits=c(0, NA)) +
+  ggtitle("Donations by 36 people I spoke with (and any associated businesses)") +
+  theme_bw()
+
+don |> 
+  filter(fyear %in% 2013:2023) |>
+  filter(campaign != "Endowment") |> 
+  mutate(group=ifelse(account %in% accts, "spoke", "other")) |> 
+  summarise(donation=sum(donation), .by=c(fyear, group)) |> 
+  mutate(share=donation / sum(donation), .by=fyear) |> 
+  filter(group=="spoke") |> 
+  ggplot(aes(fyear, share)) +
+  geom_line(colour="blue") +
+  geom_point(colour="blue") +
+  scale_x_continuous(name="Hubbard Hall fiscal year", breaks=2012:2024) +
+  scale_y_continuous(name="% share", labels = scales::percent_format(), limits=c(0, NA)) +
+  ggtitle("% Share of non-endowment donations by 35 people I spoke with (and any associated businesses)") +
+  theme_bw()
+
+  
+
+tabdata |> 
+  filter(fyear %in% 2013:2023) |> 
+  filter(!hhname %in% edfs$hhname[edfs$edfer>0]) |> 
+  summarise(nyears=length(unique(fyear)), donation=sum(donation), .by=ygroup) |> 
+  arrange(ygroup) |> 
+  janitor::adorn_totals() |> 
+  mutate(avgpy=donation / nyears)
+
+tabdata |> 
+  filter(fyear %in% 2013:2023) |> 
+  filter(campaign != "Executive Director Fund") |> 
+  summarise(nyears=length(unique(fyear)), donation=sum(donation), .by=ygroup) |> 
+  arrange(ygroup) |> 
+  janitor::adorn_totals() |> 
+  mutate(avgpy=donation / nyears)
+
+tmp <- don |> 
+  filter(str_detect(lname, "Estey"))
+
+tabdata |> 
+  filter(is.na(lname))
+
+d1 <- tabdata |> 
+  filter(fyear %in% 2013:2023) |> 
+  mutate(lname=case_when(str_detect(copcname, "Bump") ~ "Bump",
+                         str_detect(copcname, "Griffin") ~ "Griffin",
+                         str_detect(copcname, "Becky") ~ "Country Gals",
+                         TRUE ~ lname)) |> 
+  summarise(donation=sum(donation), .by=c(lname, fyear))
+
+dtots <- d1 |> 
+  summarise(donation=sum(donation), .by=lname) |> 
+  arrange(desc(donation))
+
+d1 |> 
+  arrange(fyear) |> 
+  pivot_wider(names_from = fyear, values_from = donation) |> 
+  left_join(dtots |> select(lname, total=donation), by = join_by(lname)) |> 
+  arrange(desc(total)) |> 
+  janitor::adorn_totals()
+
+don |> 
+  # filter(account %in% accts) |> 
+  filter(fyear %in% 2013:2023) |> 
+  filter(campaign!="Endowment") |> 
+  mutate(campaign=ifelse(is.na(campaign), "other", campaign)) |> 
+  mutate(edf=ifelse(campaign != "Executive Director Fund", "other", "execdir")) |> 
+  summarise(donation=sum(donation), .by=c(fyear, edf)) |> 
+  pivot_wider(names_from = edf, values_from = donation, values_fill = 0) |> 
+  select(fyear, execdir, other) |> 
+  mutate(total=execdir + other) |> 
+  arrange(fyear) |> 
+  janitor::adorn_totals() |> 
+  gt() |> 
+  fmt_currency(columns=-c(fyear),
+             decimals=0)
+
+don |> group_by(campaign) |> summarise(don=sum(donation)) |> ungroup() |> arrange(desc(don))
+tmp <- don |> 
+  filter(campaign=="Endowment")
+sum(don$donation) # 2,429,214
+
+
+
+```
+
+
+The tables below exclude the partial 2024 fiscal year.
+
+## Questions to investigate
+
+-   Why did...?
+
+
+## Donations by donor type
+
+### All donations
+
+```{r dtype}
+#| label: dtype
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  summarise(donation=sum(donation), .by=c(acctype, fyear)) |> 
+  arrange(acctype) |> 
+  pivot_wider(names_from = acctype, values_from = donation, values_fill = 0) |> 
+  arrange(fyear) |> 
+  mutate(sum=rowSums(across(-fyear)))|> 
+  relocate(sum, .after=fyear)
+
+tabdata |> 
+  gt() |> 
+  tab_header(
+    title = html("Donations by fiscal year and donor type"),
+    subtitle = html("Includes All Donations")
+  ) |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+
+```
+
+
+### Donations for Endowment and Executive Director Fund
+
+```{r dtype_stranded}
+#| label: dtype_stranded
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  summarise(donation=sum(donation), .by=c(acctype, fyear)) |> 
+  arrange(acctype) |> 
+  pivot_wider(names_from = acctype, values_from = donation, values_fill = 0) |> 
+  arrange(fyear) |> 
+  mutate(sum=rowSums(across(-fyear)))|> 
+  relocate(sum, .after=fyear)
+
+tabdata |> 
+  gt() |> 
+  tab_header(
+    title = html("Donations by fiscal year and donor type"),
+    subtitle = html("Donations for Strand Endowment and Executive Director Fund")
+  ) |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  sub_missing(missing_text = "--") |> 
+  tab_options(table.width = pct(100))
+
+```
+
+
+### Excluding Endownment and Executive Director Fund
+
+We don't know what EDF donors would have done in 2013-2017. The table below excludes these donations. Even with these donations exclude note the sweet period from 2015-2017, and the substantial dropoff in 2018 and 2019, which were pre-COVID years.
+
+In other words, our dropoff began before COVID.
+
+The dropoff occurred in both individual and company donations.
+
+**What changed?**
+
+Note, also, the continued sharp dropoff in company donations. They are now only a quater to a third what they were in the heyday.
+
+```{r dtype_xstranded}
+#| label: dtype_xstranded
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(!campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  summarise(donation=sum(donation), .by=c(acctype, fyear)) |> 
+  arrange(acctype) |> 
+  pivot_wider(names_from = acctype, values_from = donation, values_fill = 0) |> 
+  arrange(fyear) |> 
+  mutate(sum=rowSums(across(-fyear)))|> 
+  relocate(sum, .after=fyear)
+
+tabdata |> 
+  gt() |> 
+  tab_header(
+    title = html("Donations by fiscal year and donor type"),
+    subtitle = html("Excludes Strand Endowment and Executive Director Fund")
+  ) |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+```
+
+
+## Company donations
+```{r}
+#| label: comp
+#| eval: true
+#| include: true
+#| tbl-column: page
+
+# I checked, and there are not any missing company names
+
+topn <- 25
+
+donors <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(acctype=="Company") |> 
+  filter(!campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  summarise(donation=sum(donation), .by=coname) |> 
+  arrange(desc(donation)) |> 
+  mutate(bigdonor=ifelse(row_number() <= topn, coname, "other")) |> 
+  mutate(totdon=sum(donation), .by=bigdonor)
+
+bigdonors <- donors |> 
+  summarise(n=n(), donation=sum(donation), .by=bigdonor)
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(acctype=="Company") |> 
+  filter(!campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  summarise(donation=sum(donation), .by=c(coname, fyear)) |> 
+  arrange(fyear, desc(donation)) |> 
+  left_join(donors |> select(coname, bigdonor, totdon), by = join_by(coname)) |> 
+  reframe(totdon=first(totdon), donation=sum(donation), .by=c(bigdonor, fyear)) |> 
+  arrange(fyear) |> 
+  pivot_wider(names_from = fyear, values_from = donation, values_fill = 0) |> 
+  arrange(desc(totdon))
+
+tabdata <- tabdata |> 
+  arrange(bigdonor == "other") |> # move other to the bottom
+  adorn_totals()
+
+tabdata |> 
+  gt() |> 
+  tab_header(
+    title = html("Company donations by fiscal year and total donor giving"),
+    subtitle = html(paste0("Top ", topn, " 2013-2023 donors, plus all other. Excludes Strand Endowment and Executive Director Fund"))
+  ) |>
+  cols_label(bigdonor="Donor",
+             totdon="Total giving") |> 
+  fmt_number(columns=-c(bigdonor),
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+
+```
+
+
+## Donations by Individuals still in the area
+
+```{r fixdata}
+#| label: fixdata
+#| eval: false
+#| include: false
+#| tbl-column: page
+
+don1 <- don |> 
+  mutate(across(where(is.character), ~ ifelse(.x=="", NA_character_, .x))) |> 
+  mutate(hhname=ifelse(is.na(hhname), 
+                       paste0(fname, "_", lname, "_NA"),
+                       hhname)) 
+
+tmp <- don1 |> 
+  filter(lname=="Miscellaneous Transactions") |> 
+  select(where(~!all(is.na(.x))))
+# ok, we can drop all misc trans -- they all have $15 donations
+
+# what about missing addresses?
+tmp <- don1 |> 
+  filter(lname!="Miscellaneous Transactions", acctype=="Individual") |> 
+  select(account, lname, fname, hhname, coname, addr1, addr2, city, state, zip, dondate, donation) |> 
+  mutate(hhname=ifelse(is.na(hhname), 
+                       paste0(fname, "_", lname, "_NA"),
+                       hhname)) |> 
+  arrange(account, dondate)
+  
+
+universe1 <- don1 |> 
+  filter(lname!="Miscellaneous Transactions", acctype=="Individual", deceased=="No") |>
+  mutate(gaveprior=sum(donation * (fyear==2016) + donation * (fyear==2017)), .by=account) |> 
+  filter(gaveprior > 0) |> 
+  select(account, lname, fname, hhname) |> 
+  distinct()
+
+# get best address for the universe, to see whether they have moved
+f <- function(var) as.integer(!is.na(var))
+uniaddress1 <- don1 |> 
+  filter(account %in% universe1$account) |> 
+  select(account, lname, fname, hhname, addr1, addr2, city, state, zip, dondate, donation, fyear) |> 
+  mutate(across(where(is.character), ~ ifelse(.x=="", NA_character_, .x))) |> 
+  mutate(goodaddr=f(addr1) + f(addr2) + f(city) + f(state) + f(zip)) |> 
+  arrange(account, dondate)
+
+uniaddress2 <- uniaddress1 |> 
+  group_by(account) |> 
+  filter(row_number()==n()) |> 
+  ungroup()
+
+uniaddress1 |> 
+  filter(account==41519)
+
+don |> 
+  filter(str_detect(lname, "Pembroke"))
+
+
+uniaddress2 <- uniaddress1 |> 
+  mutate(period=case_when(fyear <= 2019 ~ "early",
+                          fyear >= 2022 ~ "late",
+                          TRUE ~ other))
+
+
+don2 <- don1 |> 
+  filter(account %in% universe1$account) |> 
+  select(account, lname, fname, hhname, addr1, addr2, city, state, zip, dondate, donation, fyear)
+
+don3 <- don2 |> 
+  filter(fyear %in% c(2016:2019, 2022:2023)) |> 
+  #filter(!hhname %in% c("George & Janet Scurria")) |> 
+  mutate(period=case_when(fyear %in% 2016:2017 ~ "y20162017",
+                          fyear %in% 2018:2019 ~ "y20172018",
+                          fyear %in% 2022:2023 ~ "y20222023",
+                          TRUE ~ "ERROR")) |> 
+  summarise(donation=sum(donation), .by=c(hhname, period)) |> 
+  pivot_wider(names_from = period, values_from = donation, values_fill = 0)
+
+don3 |> 
+  summarise(across(-hhname, sum))
+  
+
+
+
+
+  
+
+
+```
+
+
+```{r still-here}
+#| label: still-here
+#| eval: true
+#| include: true
+
+
+# universe - people who were around in 2017-2019 and are still around
+universe <- don |> 
+  filter(fyear %in% 2017:2023, deceased != "no", acctype=="Individual") |> 
+  select(account, donation, dondate, fyear, hhname, fname, lname, coname, copcname, addr1, addr2, city, state, zip) |> 
+  mutate(hhname=ifelse(is.na(hhname), 
+                       paste0(fname, "_", lname, "_NA"),
+                       hhname))
+
+edfs <- don |> 
+  # filter(account %in% accts, fyear %in% 2013:2023) |> 
+  mutate(campaign=case_when(campaign == "Executive Director Fund" ~ "edf",
+                            TRUE ~ "other")) |> 
+  arrange(account, fyear) |> 
+  mutate(edfer=sum(campaign=="edf"), .by=account) |> 
+  summarise(edfer=sum(edfer)>0, .by=hhname)
+
+don |> 
+  # filter(account %in% accts, fyear %in% 2013:2023) |>
+  filter(fyear %in% 2013:2023) |> 
+  select(account, acctype, fname, lname, hhname, coname, copcname, campaign, dondate, fyear, donation) |> 
+  filter(!hhname %in% edfs$hhname[edfs$edfer>0]) |> 
+  mutate(ygroup=case_when(fyear %in% 2013:2016 ~ "y201316",
+                          fyear %in% 2017:2019 ~ "y201719",
+                          fyear %in% 2020:2021 ~ "y202021",
+                          fyear %in% 2022:2023 ~ "y202223",
+                          TRUE ~ "zother")) |> 
+  summarise(nyears=length(unique(fyear)), donation=sum(donation), .by=ygroup) |> 
+  mutate(avgpy=donation / nyears) |> 
+  arrange(ygroup)
+
+```
+
+
+
+## Donations by size
+
+```{r breaks}
+#| label: breaks
+#| eval: true
+#| include: false
+
+brks <- c(-Inf, 0, 100, 1000, 5000, 10000, Inf)
+blabs <- cut_labels(brks)
+
+```
+
+
+### Number of donations
+```{r}
+#| label: fyearsize_num
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  mutate(fdon=cut(donation,
+                  brks,
+                  labels = blabs,
+                  right=FALSE)) |> 
+  summarise(n=n(), .by=c(fdon, fyear)) |> 
+  arrange(fdon, fyear) |> 
+  pivot_wider(names_from = fdon, values_from = n) |> 
+  mutate(sum=rowSums(across(-fyear)))
+
+tabdata |> 
+  relocate(sum, .after=fyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Number of donations by fiscal year and size"),
+    subtitle = html("Includes Strand Endowment")
+  ) |>
+  tab_spanner(columns= -c(fyear, sum),
+              label="Size of donation") |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_number(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+```
+
+
+
+### Amounts, Including Strand Endowment
+
+```{r fyearsize_all}
+#| label: fyearsize_all
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  mutate(fdon=cut(donation,
+                  brks,
+                  labels = blabs,
+                  right=FALSE)) |> 
+  summarise(donation=sum(donation), .by=c(fdon, fyear)) |> 
+  arrange(fdon, fyear) |> 
+  pivot_wider(names_from = fdon, values_from = donation) |> 
+  mutate(sum=rowSums(across(-fyear)))
+
+tabdata |> 
+  relocate(sum, .after=fyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Donation totals ($) by fiscal year and size"),
+    subtitle = html("Includes Strand Endowment")
+  ) |>
+  tab_spanner(columns= -c(fyear, sum),
+              label="Size of donation") |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+# don |> 
+#   filter(fyear %in% 2013:2023, donation > 0) |> 
+#   mutate(fdon=cut(donation, brks,
+#                   right=FALSE)) |> 
+#   summarise(n=n(), .by=c(fdon, fyear)) |> 
+#   arrange(fdon, fyear) |> 
+#   pivot_wider(names_from = fdon, values_from = n) |> 
+#   mutate(sum=rowSums(across(-fyear)))
+
+# don |> 
+#   filter(fyear %in% 2013:2023, donation > 0) |> 
+#   mutate(fdon=cut(donation, brks,
+#                   right=FALSE)) |> 
+#   summarise(avg=mean(donation), .by=c(fdon, fyear)) |> 
+#   arrange(fdon, fyear) |> 
+#   pivot_wider(names_from = fdon, values_from = avg) |> 
+#   mutate(sum=rowSums(across(-fyear)))
+
+```
+
+### Excluding Strand Endowment
+
+```{r fyearsize_xstrand}
+#| label: fyearsize_xstrand
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(campaign != "Endowment") |> 
+  mutate(fdon=cut(donation,
+                  brks,
+                  labels = blabs,
+                  right=FALSE)) |> 
+  summarise(donation=sum(donation), .by=c(fdon, fyear)) |> 
+  arrange(fdon, fyear) |> 
+  pivot_wider(names_from = fdon, values_from = donation) |> 
+  mutate(sum=rowSums(across(-fyear)))
+
+tabdata |> 
+  relocate(sum, .after=fyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Donation totals ($) by fiscal year and size"),
+    subtitle = html("Excludes Strand Endowment")
+  ) |>
+  tab_spanner(columns= -c(fyear, sum),
+              label="Size of donation") |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+
+```
+
+
+### Excluding Strand Endowment and Executive Director Fund
+
+```{r fyearsize_xstrand_xedf}
+#| label: fyearsize_xstrand_xedf
+#| eval: true
+#| include: true
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0) |> 
+  filter(!campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  mutate(fdon=cut(donation,
+                  brks,
+                  labels = blabs,
+                  right=FALSE)) |> 
+  summarise(donation=sum(donation), .by=c(fdon, fyear)) |> 
+  arrange(fdon, fyear) |> 
+  pivot_wider(names_from = fdon, values_from = donation) |> 
+  mutate(sum=rowSums(across(-fyear)))
+
+tabdata |> 
+  relocate(sum, .after=fyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Donation totals ($) by fiscal year and size"),
+    subtitle = html("Excludes Strand Endowment and Executive Director Fund")
+  ) |>
+  tab_spanner(columns= -c(fyear, sum),
+              label="Size of donation") |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+
+```
+
+
+## Donations by household, by fiscal year and size
+
+```{r}
+
+# tmp <- count(don, hhname, fyear)
+# count(don, acctype)
+# 
+# tmp <- don |> 
+#   filter(fyear %in% 2013:2023, donation > 0, acctype=="Individual") |> 
+#   filter(is.na(hhname))
+
+tabdata <- don |> 
+  filter(fyear %in% 2013:2023, donation > 0, acctype=="Individual") |> 
+  filter(!campaign %in% c("Endowment", "Executive Director Fund")) |> 
+  mutate(hhname=ifelse(is.na(hhname), paste(lname, fname, "hhna", sep="-"), hhname)) |> 
+  summarise(donation=sum(donation), .by=c(fyear, hhname)) |> 
+  mutate(fdon=cut(donation,
+                  brks,
+                  labels = blabs,
+                  right=FALSE)) |> 
+  summarise(donation=sum(donation), .by=c(fdon, fyear)) |> 
+  arrange(fdon, fyear) |> 
+  pivot_wider(names_from = fdon, values_from = donation) |> 
+  mutate(sum=rowSums(across(-fyear)))
+
+tabdata |> 
+  relocate(sum, .after=fyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Donation totals ($) by fiscal year and size of a household's donation"),
+    subtitle = html("Excludes Strand Endowment and Executive Director Fund")
+  ) |>
+  tab_spanner(columns= -c(fyear, sum),
+              label="Size of donation") |>
+  cols_label(fyear="Fiscal year",
+             sum="Total") |> 
+  fmt_currency(columns=-fyear,
+               decimals=0) |> 
+  tab_options(table.width = pct(100))
+
+```
+
+
+
+## Donations by campaign category
+
+### Preparation
+
+I collapsed some categories to make the campaign information easier to understand:
+
+-   Corporate Fund Drive includes a couple of corporate miscellaneous items; they were not large
+
+-   Capital includes: Capital Campaign Match - 2019, Misc.Donation/Restricted Capital, Riser Fund Drive, as well as Hall New Floor 2016.
+
+-   Gala includes anything with the word "Gala" in it
+
+-   Opera includes two separate opera campaigns
+
+-   Anything that was not at least \$10k in one year was collapsed into \_Other
+
+-   I made a couple of labels more descriptive.
+
+
+```{r campaign-category-collapse}
+#| label: campaign-category-collapse
+#| eval: false
+#| include: false
+
+# don <- readRDS(here::here("data", "rds", "donations.rds"))
+don <- readRDS(here::here("data", "rds", "donations_geo.rds"))
+
+dcampcat <- don |>
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(campcat=case_when(
+    str_detect(campaign, "Annual Fund Drive") ~ 
+      "Annual Fund Drive",
+    str_detect(campaign, "Corp Fund Drive") |
+      str_detect(campaign, coll("Corp. Fund Drive")) | 
+      str_detect(campaign, coll("Corp.Fund Drive")) |
+      str_detect(campaign, "Corporate Misc") ~
+      "Corporate: Fund Drive & misc.",
+    campaign %in% c("Capital Campaign Match - 2019",
+                   "Misc.Donation/Restricted Capital",
+                   "Riser Fund Drive",
+                   "Hall New Floor 2016"
+                   ) ~
+      "Capital",
+    str_detect(campaign, "Gala") ~ "Gala",
+    str_detect(campaign, "Opera") ~ "Opera: Match 2017, and restricted",
+    campaign=="Sustaining Donor" ~ "Sustaining Donor - many small donors",
+    campaign=="Misc.Donation/Restricted - Really Rosie" ~ "Really Rosie (from Maurice Sendak Foundation)",
+    campaign=="Executive Director Fund" ~ "Executive Director Fund (to support ED salary)",
+    campaign %in% c("Endowment",
+                    "Grant Request",
+                    "Hubbard Hall Video",
+                    "Sendak Matching Funds",
+                    "Summer-Fall 2022 Matching Campaign",
+                    "Together Apart") ~
+      campaign,
+    TRUE ~ "_Other"))
+
+saveRDS(dcampcat, here::here("data", "rds", "donations_catg.rds"))
+
+tabdata <- count(dcampcat, campcat, campaign) |> 
+  mutate(groupn=sum(n), .by=campcat) |> 
+  relocate(n, .after = groupn) |> 
+  arrange(campcat, desc(n))
+
+tmp <- dcampcat |> 
+  filter(str_detect(campaign, "Executive Director"))
+
+tmp |> 
+  select(account, lname, fname, donation, dondate, fyear)
+
+tmp |> 
+  summarise(donation=sum(donation), .by=c(account, lname, fname, fyear)) |> 
+  arrange(fyear) |> 
+  pivot_wider(names_from = fyear, values_from = donation, values_fill = 0) |> 
+  arrange(account) |> 
+  adorn_totals()
+
+edpids <- dcampcat |> 
+  filter(str_detect(campaign, "Executive Director")) |> 
+  summarise(donation=sum(donation), .by=c(account, lname, fname))
+sum(edpids$donation)
+
+dcampcat |> 
+  filter(account %in% edpids$account) |> 
+  filter(!str_detect(campaign, "Executive Director")) |> 
+  summarise(donation=sum(donation), .by=c(account, lname, fname, fyear)) |> 
+  arrange(fyear) |> 
+  pivot_wider(names_from = fyear, values_from = donation, values_fill = 0) |> 
+  arrange(account) |> 
+  adorn_totals()
+
+
+```
+
+
+::: column-page
+```{r}
+#| label: campaign-year-show
+#| eval: false
+#| include: false
+
+
+# tmp <- df2 |> filter(campaign=="Sustaining Donor")
+# tmp <- df2 |> filter(campaign=="Together Apart")
+# tmp <- df2 |> filter(str_detect(campaign, "Really Rosie"))
+# tmp <- df2 |> filter(campaign=="Sendak Matching Funds")
+# quantile(tmp$donation)
+
+don <- readRDS(here::here("data", "rds", "donations_geo.rds"))
+
+don |> 
+  filter(str_detect(sponsored, coll("opera", ignore_case=TRUE))) |> 
+  count(campaign, sponsored)
+
+tabdata <- don |>
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(campaign=case_when(
+    str_detect(campaign, "Opera") ~ "_Opera campaign",
+    str_detect(sponsored, coll("opera", ignore_case=TRUE)) ~ "_Opera Annual Fund Drive",
+    str_detect(campaign, "Annual Fund Drive") ~ 
+      "Annual Fund Drive ex Opera",
+    str_detect(campaign, "Corp Fund Drive") |
+      str_detect(campaign, coll("Corp. Fund Drive")) | 
+      str_detect(campaign, coll("Corp.Fund Drive")) |
+      str_detect(campaign, "Corporate Misc") ~
+      "Corporate: Fund Drive & misc.",
+    campaign %in% c("Capital Campaign Match - 2019",
+                   "Misc.Donation/Restricted Capital",
+                   "Riser Fund Drive",
+                   "Hall New Floor 2016"
+                   ) ~
+      "Capital",
+    str_detect(campaign, "Gala") ~ "Gala",
+    # str_detect(campaign, "Opera") ~ "Opera: Match 2017, and restricted",
+    campaign=="Sustaining Donor" ~ "Sustaining Donor - many small donors",
+    campaign=="Misc.Donation/Restricted - Really Rosie" ~ "Really Rosie (from Maurice Sendak Foundation)",
+    campaign=="Executive Director Fund" ~ "Executive Director Fund (to support ED salary)",
+    campaign %in% c("Endowment",
+                    "Grant Request",
+                    "Hubbard Hall Video",
+                    "Sendak Matching Funds",
+                    "Summer-Fall 2022 Matching Campaign",
+                    "Together Apart") ~
+      campaign,
+    TRUE ~ "_Other")) |>  # _Other
+  summarise(n=n(), donation=sum(donation), .by=c(fyear, campaign)) |> 
+  select(-n) |> 
+  pivot_wider(names_from = fyear, values_from = donation) |> 
+  arrange(campaign) |> 
+ janitor::adorn_totals()
+
+tabdata |>
+  gt() |>
+  tab_header(
+    title = "Donations by campaign group and Hubbard Hall fiscal year",
+    subtitle = "Some campaigns are collapsed into larger categories"
+    ) |>
+  cols_label(campaign="Campaign") |>
+  fmt_number(columns=-campaign,
+             decimals=0) |>
+  fmt_currency(columns=-campaign,
+               rows=c(1, nrow(tabdata)),
+               decimals=0) |>
+  sub_missing(
+    # columns = 4:7,
+    missing_text = "--"
+  )
+```
+:::
+
+
+### Comments/questions
+
+A few comments and questions:
+
+-   The falloff between the heyday years of 2015-2017 is pretty dramatic, even if you exclude the special support we received for David's salary in those years. And the falloff of the last 2 years just makes it worse.
+
+-   The falloff in 2018 and 2019 was pretty substantial. And 2020 fell again. Since 2020 ended in June 2020, and Covid started in mid-March 2020, it doesn't seem like Covid is at fault for that, unless we had to cancel donation events we expected in March-June that would have raised substantial donations (did we?). In any event, while Covid no-doubt has hurt our donations, it seems like our problems started sooner.
+
+-   I had expected to see a more obvious pattern of individual donations (e.g., annual fund drive) falling off in or after the year of a capital campaign, but I'm not really seeing that. Am I misinterpreting the data or categories?
+
+-   The "Sustaining Donor" category is interesting, although I don't know what it is - perhaps a new category recently created. It consists of 809 donations over the years shown. Most of the donations are small - \$50-100.
+
+-   What was the Sendak matching campaign about? It appears to have had 2 elements:
+
+    -   Really Rosie was a one-time campaign for a show in FY 2016, I believe. It was a single donation from the Maurice Sendak Foundation of \$14,900 on 7/6/2015.
+
+    -   The Sendak Matching Funds campaign entailed 122 donations between 8/4/2015 and 11/9/2015. We received about \$6,500 through 3 large out-of-area contributions and the remainder from 122 smaller contributions from the local area (although several of those local contributions were for \$1,000).
+
+    -   So a \$14,900 initial contribution appears to have leveraged \$22,908 of additional contributions. Why did Sendak contribute? Are there similar arrangements we could make with other potential large donors in the future? It doesn't look like other donation categories dropped off in a big way.
+
+-   What was Together Apart about? Presumably it was Covid-related. There were 125 donations, 6 of which were \$1k+.
+
+-   What is the Grant Request category? That's a sizeable sum in 2018.
+
+-   Opera sure had a lot of support the two times we ran a campaign. They raised a lot less than the \$50k+ cost for running an opera that Judy mentioned in our conversation on 10/10/2023, but there might be a future opportunity here if we are able to bring in outside matching money or perhaps run a campaign emphasizing the need for larger donations.
+
+
+## Donations by size group
+
+The table below shows the dollar value of donations by size group and Hubbard Hall fiscal year (not including the 2024 partial fiscal year). A few comments:
+
+-   The \$800k+ donation in 2021 in the \$3,000+ size group reflects several large donations constituting the Strand Endowment.
+
+-   
+
+```{r}
+#| label: size-year-prep
+#| eval: false
+#| include: false
+
+sizes <- c(0, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000, 10000, Inf)
+
+df2 |>
+  mutate(dgroup=cut(donation, sizes)) |> 
+  summarise(n=n(), donation=sum(donation), .by=c(fyear, dgroup)) |> 
+  select(-donation) |> 
+  pivot_wider(names_from = dgroup, values_from = n)
+
+
+
+sizes <- c(0, 50, 100, 200, 500, 1000, 2000, 3000, Inf)
+labels <- nicer_labels(sizes)
+
+df2 |>
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(dgroup=cut(donation, sizes, ordered_result = TRUE)) |> 
+  summarise(n=n(), donation=sum(donation), .by=c(fyear, dgroup)) |> 
+  select(-donation) |> 
+  pivot_wider(names_from = fyear, values_from = n) |> 
+  arrange(dgroup)
+  
+
+
+
+```
+
+::: column-page
+```{r}
+#| label: size-year-show
+#| eval: false
+#| include: false
+
+tabdata <- df2 |>
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(dgroup=cut(donation, sizes, right=FALSE, labels = labels)) |> 
+  summarise(n=n(), donation=sum(donation), .by=c(fyear, dgroup)) |> 
+  select(-n) |> 
+  pivot_wider(names_from = fyear, values_from = donation) |> 
+  arrange(dgroup) |> 
+  janitor::adorn_totals()
+
+tabdata |> 
+  gt() |> 
+  tab_header(
+    title = "Donations by size group and Hubbard Hall fiscal year",
+    subtitle = "Labeled by ending year (e.g., 2023 is 2022-23 fiscal year)"
+    ) |>
+  cols_label(dgroup="Donation size") |>
+  fmt_number(columns=-dgroup,
+             decimals=0) |> 
+  fmt_currency(columns=-dgroup,
+               rows=c(1, nrow(tabdata)),
+               decimals=0)
+
+```
+:::
+
+
+## Donation fall-off
+
+```{r}
+#| label: falloff-prep
+#| eval: false
+#| include: false
+
+df2 |> 
+  filter(is.na(fname), is.na(lname), is.na(coname))
+
+largedonors <- df2 |> 
+  summarise(donation=sum(donation), .by=c(lname, fname, coname)) |> 
+  arrange(desc(donation)) |>
+  filter(!lname %in% c("Ransford", "Miscellaneous Transactions")) |> 
+  filter(row_number() <= 50)
+  
+tabdata <- largedonors |> 
+  rename(dsum=donation) |> 
+  left_join(df2 |> filter(donation > 0, fyear < 2024), 
+            by = join_by(lname, fname, coname)) |> 
+  arrange(desc(dsum)) |> 
+  summarise(donation=sum(donation), .by=c(lname, fname, coname, fyear)) |> 
+  pivot_wider(names_from = fyear, values_from = donation)
+
+# cases where 2022-2023 avg donation changed by >= 1000 from 2016-2018 avg
+change <- df2 |> 
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(fygroup=case_when(fyear %in% 2016:2018 ~ "fy1618",
+                           fyear %in% 2022:2023 ~ "fy2223",
+                           TRUE ~ "other")) |> 
+  filter(fygroup != "other") |> 
+  summarise(donation=mean(donation), .by = c(lname, fname, coname, fygroup)) |> 
+  pivot_wider(names_from = fygroup, values_from = donation, values_fill = 0) |> 
+  mutate(change=fy2223 - fy1618) |> 
+  arrange(desc(abs(change)))
+
+diffs <- change |> 
+  filter(!lname %in% c("Caponera", "Scurria", "Roome")) |> 
+  mutate(posneg=case_when(change > 0 ~ "increase",
+                          change == 0 ~ "no change",
+                          change < 0 ~ "decrease",
+                          TRUE ~ "ERROR"))
+diffs
+
+diffs |> 
+  summarise(n=n(), fy1618=sum(fy1618), fy2223=sum(fy2223), change=sum(change), .by=posneg)
+
+```
+
+
+The table below shows change
+
+```{r}
+#| label: falloff-show
+#| eval: false
+#| include: false
+# BE SURE TO GET THIS INDIVIDUALLY AND REMOVE ATYPICAL ITEMS
+
+base <- df2 |> 
+  filter(donation > 0, fyear < 2024) |> 
+  mutate(fygroup=case_when(fyear %in% 2016:2018 ~ "fy1618",
+                           fyear %in% 2022:2023 ~ "fy2223",
+                           TRUE ~ "other")) |> 
+  filter(fygroup != "other") |> 
+  summarise(donation=mean(donation), .by = c(lname, fname, coname, fygroup)) |> 
+  pivot_wider(names_from = fygroup, values_from = donation, values_fill = 0) |> 
+  mutate(change=fy2223 - fy1618) |> 
+  arrange(desc(abs(change)))
+
+
+```
+
+
+

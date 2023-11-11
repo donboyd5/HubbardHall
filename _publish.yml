@@ -1,0 +1,4 @@
+- source: project
+  netlify:
+    - id: 50bad6d4-5c21-4c83-9170-d35e9e04396a
+      url: 'https://boyd-hubbard-hall.netlify.app'

@@ -1,0 +1,177 @@
+---
+output: html_document
+editor_options:
+ chunk_output_type: console
+---
+
+# Attendance
+
+
+```{r}
+#| label: setup
+#| include: false
+
+source(here::here("r", "libraries.r"))
+source(here::here("r", "libraries_ts.r"))
+source(here::here("r", "constants.r"))
+source(here::here("r", "functions.r"))
+
+```
+
+
+
+```{r}
+#| label: getdata
+#| include: false
+
+vnames <- readRDS(here::here("data", "rds", "vnames.rds"))
+attend <- readRDS(here::here("data", "rds", "attendance.rds"))
+  
+```
+
+
+```{r}
+#| label: xwalk_prep
+#| include: false
+#| eval: false
+
+attend |> 
+  select(evdate_start, evname) |> 
+  distinct() |> 
+  write_csv(here::here("data", "event_xwalk_raw.csv"))
+
+
+
+
+```
+
+
+```{r}
+#| label: play
+#| include: false
+#| eval: false
+
+glimpse(attend)
+skim(attend)
+tmp <- count(attend, evname)
+count(attend, evcategory)
+
+attend |> 
+  filter(evdate_start != evdate_end) |> 
+  count(evname, sort = TRUE)
+
+attend |> 
+  filter(evdate_start != evdate_end) |> 
+  select(evname, evdate_start, evdate_end)
+
+tmp2 <- attend |> 
+  filter(str_detect(evname, "Elixir of Love"))
+count(tmp2, evname)
+
+attend |> 
+  filter(str_detect(evname, "Elixir of Love")) |> 
+  summarise(n=n(), count=sum(evcount), .by=c(evname, evdate_start, evdate_end)) |>
+  arrange(evdate_start)
+
+
+attend |> 
+  filter(evcategory=="Theater Performances") |> 
+  summarise(n=n(), count=sum(evcount), .by=c(evname, evdate_start, evdate_end)) |>
+  arrange(evdate_start)
+
+plays <- attend |> 
+  filter(str_detect(evcategory, coll("Performances", ignore_case=TRUE)), evdate_start==evdate_end) |> 
+  mutate(evdate=as.Date(evdate_start)) |> 
+  summarise(n=n(), count=sum(evcount), amount=sum(evamount), .by=c(evname, evdate, fyear)) |>
+  arrange(desc(evdate))
+count(plays, evname)
+
+plays |> 
+  arrange(desc(amount))
+
+plays |> 
+  filter(evdate <= "2023-09-30")
+
+pdata <- plays |> 
+  filter(evdate <= "2023-09-30") |>  
+  mutate(evdate=yearmonth(evdate)) |> 
+  summarise(n=sum(n), count=sum(count), amount=sum(amount), .by=evdate) |>
+  as_tsibble(index=evdate) |> 
+  fill_gaps(.full = TRUE, amount=0)
+
+pdata |>  
+  gg_subseries(amount) + 
+  geom_point() +
+  ggtitle("$ revenue from performances") +
+  theme_bw() +
+  x90
+
+plays |> 
+  filter(month(evdate)==8) |>  
+  summarise(n=sum(n), count=sum(count), amount=sum(amount), .by=c(evdate, fyear, evname)) |> 
+  arrange(evdate)
+
+aug <- plays |> 
+  filter(month(evdate)==8) |>  
+  summarise(n=sum(n), count=sum(count), amount=sum(amount), .by=c(evdate, fyear, evname)) |> 
+  arrange(evdate) |> 
+  mutate(evname2=str_remove(evname, "SOLD OUT"),
+         evname2=str_remove_all(evname2, "!"),
+         evname2=str_trim(evname2),
+         evname3=str_sub(evname2, 1, 22))
+
+aug |> 
+  mutate(cyear=year(evdate)) |>
+  summarise(ndates=n(), count=sum(count), amount=sum(amount), .by=c(cyear, evname3)) |> 
+  arrange(cyear) |> 
+  gt() |> 
+  tab_header(
+    title = html("Hubbard Hall Attendance and Revenue by Year and Performance")
+  ) |>
+  cols_label(evname3=html("Event (short name)"),
+             ndates = html("Number of performances")) |>
+  fmt_number(columns=c(ndates, count),
+             decimals=) |> 
+  fmt_currency(columns=c(amount),
+               decimals=0)
+
+glimpse(attend)
+attend |>
+  summarise(n=sum(), evcount=sum(evcount), evamount=sum(evamount), .by=c(evdate_start, evdate_end, evname)) |> 
+  arrange(desc(evdate_start))
+
+
+xvals <- c("Teen", "CCS Drama Club", "CS and Youth Chorale", "Cambridge Central School", "Youth Theatre",
+           "Test Event", "Youth Theater", "Music from Salem", "Rehearsal", "Cancelled")
+plays2 <- plays |> 
+  filter(!str_detect_any(evname, xvals))
+
+plays2 |> 
+  ggplot(aes(evdate, count)) +
+  geom_point()
+
+plays |> 
+  
+
+  
+plays2 |> 
+  filter(str_detect(evname, "Holiday"))
+
+plays2 |> 
+  filter(str_detect(evname, "Gala"))
+
+attend |> 
+  filter(str_detect(evname, coll("Gala", ignore_case=TRUE))) |> 
+  summarise(n=n(), count=sum(evcount), .by=c(evname, evdate_start)) |> 
+  arrange(evdate_start) |> 
+  filter(!str_detect_any(evname, c("Kids")))
+
+
+tmp <- attend |> 
+  filter(year(evdate_start)==2013) |> 
+  count(evcategory, evname)
+
+
+```
+
+
